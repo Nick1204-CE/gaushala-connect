@@ -11,9 +11,9 @@
   $: if (!shelter) goto('/');
 
   let activeTab = 'overview';
-  const tabs = ['overview','products','services','photos','contact'];
+  const tabs = ['overview','health','products','services','photos','contact'];
   function tabLabel(t) {
-    return { overview: tr.tabOverview, products: tr.tabProducts,
+    return { overview: tr.tabOverview, health: tr.tabHealth, products: tr.tabProducts,
              services: tr.tabServices, photos: tr.tabPhotos, contact: tr.tabContact }[t];
   }
 
@@ -21,6 +21,15 @@
   $: addr = shelter ? ($lang === 'gu' ? (shelter.addressGu || shelter.address) : shelter.address) : '';
   $: desc = shelter ? ($lang === 'gu' ? (shelter.descriptionGu || shelter.description) : shelter.description) : '';
   $: cowCount = shelter ? (shelter.cows || []).length : 0;
+
+  const conditionBadge = { healthy:'badge-green', sick:'badge-red', injured:'badge-orange', recovering:'badge-blue', pregnant:'badge-purple' };
+  const conditionLabel = (k, tr) => ({ healthy: tr.healthy, sick: tr.sick, injured: tr.injured, recovering: tr.recovering, pregnant: tr.pregnant }[k] || k);
+  function latestRemark(c) {
+    const list = c.healthRemarks || [];
+    return list.length ? list[list.length - 1] : null;
+  }
+  let openHistory = {};
+  function toggleHistory(id) { openHistory = { ...openHistory, [id]: !openHistory[id] }; }
 </script>
 
 <svelte:head><title>{name} – {tr.appName}</title></svelte:head>
@@ -63,6 +72,55 @@
       <div class="info-card"><div class="info-label">{tr.openHours}</div><div class="info-val">{shelter.openHours}</div></div>
       <div class="info-card"><div class="info-label">{tr.phone}</div><div class="info-val">{shelter.phone}</div></div>
     </div>
+    {/if}
+
+    <!-- Health -->
+    {#if activeTab === 'health'}
+    {#if cowCount === 0}
+      <div class="empty"><div class="empty-icon">🐄</div><h3>{tr.noResults}</h3></div>
+    {:else}
+    <div class="health-grid">
+      {#each shelter.cows as c}
+      {@const last = latestRemark(c)}
+      {@const history = (c.healthRemarks || []).slice(0, -1).reverse()}
+      <div class="health-card">
+        <div class="health-top">
+          <div>
+            <div class="health-name">🐄 {c.name}</div>
+            <div class="health-meta">{c.breed} • {c.age} yr</div>
+          </div>
+          <span class="badge {conditionBadge[last ? last.condition : 'healthy'] || 'badge-green'}">
+            {conditionLabel(last ? last.condition : 'healthy', tr)}
+          </span>
+        </div>
+        {#if last}
+          <p class="health-remark">{last.text}</p>
+          <div class="health-foot">
+            <span class="health-date">{tr.lastUpdated}: {last.date}</span>
+            {#if history.length}
+              <button class="health-toggle" on:click={() => toggleHistory(c.id)}>
+                {openHistory[c.id] ? '▲' : '▼'} {history.length}
+              </button>
+            {/if}
+          </div>
+          {#if openHistory[c.id]}
+          <div class="health-history">
+            {#each history as r}
+            <div class="health-hist-item">
+              <span class="badge {conditionBadge[r.condition] || 'badge-green'}">{conditionLabel(r.condition, tr)}</span>
+              <span class="health-date">{r.date}</span>
+              <p class="health-remark">{r.text}</p>
+            </div>
+            {/each}
+          </div>
+          {/if}
+        {:else}
+          <p class="health-remark muted">{tr.noRemarksPublic}</p>
+        {/if}
+      </div>
+      {/each}
+    </div>
+    {/if}
     {/if}
 
     <!-- Products -->
@@ -156,6 +214,19 @@
   .info-card { background: #fff; border-radius: 10px; padding: 18px; box-shadow: 0 4px 24px rgba(0,0,0,.08); border-left: 4px solid #FF6B00; }
   .info-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #6B6B6B; margin-bottom: 4px; }
   .info-val { font-size: 15px; font-weight: 700; }
+  .health-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(260px,1fr)); gap: 16px; }
+  .health-card { background: #fff; border-radius: 14px; padding: 18px; box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+  .health-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+  .health-name { font-weight: 700; font-size: 16px; }
+  .health-meta { font-size: 12px; color: #6B6B6B; margin-top: 2px; }
+  .health-remark { font-size: 14px; color: #1A1A1A; margin: 0; }
+  .health-remark.muted { color: #6B6B6B; font-style: italic; }
+  .health-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+  .health-date { font-size: 12px; color: #6B6B6B; }
+  .health-toggle { background: none; border: none; color: #FF6B00; font-weight: 600; font-size: 12px; cursor: pointer; }
+  .health-history { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #E8DDD0; display: flex; flex-direction: column; gap: 10px; }
+  .health-hist-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .health-hist-item .health-remark { flex-basis: 100%; }
   .products-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap: 18px; }
   .prod-card { background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 4px 24px rgba(0,0,0,.08); text-align: center; transition: all .25s; border: 1.5px solid transparent; }
   .prod-card:hover { border-color: #FF6B00; transform: translateY(-3px); }
